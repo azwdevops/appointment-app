@@ -1,4 +1,78 @@
+<script setup>
+import { onMounted, reactive, ref } from "vue";
+import { useToaster } from "../../toaster";
 
+const toaster = useToaster();
+
+const errors = ref([]);
+
+const form = ref({
+  name: "",
+  email: "",
+  role: "",
+});
+const getUser = () => {
+  axios.get("/api/profile").then((res) => {
+    form.value = res.data;
+  });
+};
+
+const updateProfile = () => {
+  axios
+    .put("/api/profile", form.value)
+    .then((res) => {
+      toaster.success("Profile updated successfully");
+    })
+    .catch((err) => {
+      if (err.response && err.response.status === 422)
+        errors.value = err.response.data.errors;
+    });
+};
+
+const changePasswordForm = reactive({
+  currentPassword: "",
+  password: "",
+  passwordConfirmation: "",
+});
+
+const handleChangePassword = () => {
+  errors.value = "";
+  axios
+    .post("/api/change-user-password", changePasswordForm)
+    .then((res) => {
+      toaster.success(res.data.message);
+      for (const field in changePasswordForm) {
+        changePasswordForm[field] = "";
+      }
+    })
+    .catch((err) => {
+      if (err.response && err.response.status === 422)
+        errors.value = err.response.data.errors;
+    });
+};
+
+const fileInput = ref(null);
+
+const openFileInput = () => {
+  fileInput.value.click();
+};
+
+const profilePictureUrl = ref(null);
+
+const handleFileChange = (e) => {
+  const file = e.target.files[0];
+  profilePictureUrl.value = URL.createObjectURL(file);
+  const formData = new FormData();
+  formData.append("profile_picture", file);
+  axios.post("/api/upload-profile-image", formData).then((res) => {
+    toaster.success("Image uploaded successfully");
+  });
+};
+
+onMounted(() => {
+  getUser();
+});
+</script>
 <template>
   <div class="content-header">
     <div class="container-fluid">
@@ -23,17 +97,23 @@
           <div class="card card-primary card-outline">
             <div class="card-body box-profile">
               <div class="text-center">
-                <input type="file" class="d-none" />
+                <input
+                  ref="fileInput"
+                  @change="handleFileChange"
+                  type="file"
+                  class="d-none"
+                />
                 <img
+                  @click="openFileInput"
                   class="profile-user-img img-circle"
-                  src="/noimage.png"
+                  :src="profilePictureUrl ? profilePictureUrl : form.avatar"
                   alt="User profile picture"
                 />
               </div>
 
-              <h3 class="profile-username text-center">John Doe</h3>
+              <h3 class="profile-username text-center">{{ form.name }}</h3>
 
-              <p class="text-muted text-center">Admin</p>
+              <p class="text-muted text-center">{{ form.role }}</p>
             </div>
           </div>
         </div>
@@ -57,7 +137,7 @@
             <div class="card-body">
               <div class="tab-content">
                 <div class="tab-pane active" id="profile">
-                  <form class="form-horizontal">
+                  <form class="form-horizontal" @submit.prevent="updateProfile">
                     <div class="form-group row">
                       <label for="inputName" class="col-sm-2 col-form-label"
                         >Name</label
@@ -68,7 +148,13 @@
                           class="form-control"
                           id="inputName"
                           placeholder="Name"
+                          v-model="form.name"
                         />
+                        <span
+                          class="text-danger text-sm"
+                          v-if="errors && errors.name"
+                          >{{ errors.name[0] }}</span
+                        >
                       </div>
                     </div>
                     <div class="form-group row">
@@ -81,7 +167,13 @@
                           class="form-control"
                           id="inputEmail"
                           placeholder="Email"
+                          v-model="form.email"
                         />
+                        <span
+                          class="text-danger text-sm"
+                          v-if="errors && errors.email"
+                          >{{ errors.email[0] }}</span
+                        >
                       </div>
                     </div>
                     <div class="form-group row">
@@ -95,7 +187,10 @@
                 </div>
 
                 <div class="tab-pane" id="changePassword">
-                  <form class="form-horizontal">
+                  <form
+                    class="form-horizontal"
+                    @submit.prevent="handleChangePassword"
+                  >
                     <div class="form-group row">
                       <label
                         for="currentPassword"
@@ -105,10 +200,16 @@
                       <div class="col-sm-9">
                         <input
                           type="password"
+                          v-model="changePasswordForm.currentPassword"
                           class="form-control"
                           id="currentPassword"
                           placeholder="Current Password"
                         />
+                        <span
+                          class="text-danger text-sm"
+                          v-if="errors && errors.current_password"
+                          >{{ errors.current_password[0] }}</span
+                        >
                       </div>
                     </div>
                     <div class="form-group row">
@@ -119,9 +220,15 @@
                         <input
                           type="password"
                           class="form-control"
+                          v-model="changePasswordForm.password"
                           id="newPassword"
                           placeholder="New Password"
                         />
+                        <span
+                          class="text-danger text-sm"
+                          v-if="errors && errors.password"
+                          >{{ errors.password[0] }}</span
+                        >
                       </div>
                     </div>
                     <div class="form-group row">
@@ -135,6 +242,7 @@
                           type="password"
                           class="form-control"
                           id="passwordConfirmation"
+                          v-model="changePasswordForm.passwordConfirmation"
                           placeholder="Confirm New Password"
                         />
                       </div>
@@ -156,3 +264,10 @@
     </div>
   </div>
 </template>
+
+<style>
+.profile-user-img:hover {
+  background-color: blue;
+  cursor: pointer;
+}
+</style>
